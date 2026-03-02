@@ -1,0 +1,54 @@
+# Repository labels definition
+# Synced automatically by the sync-labels workflow
+
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+
+- name: triage
+  color: e4e669
+  description: Needs triage / initial investigation
+
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
+
+- name: dependencies
+  color: 0366d6
+  description: Pull requests that update a dependency file
+
+- name: ci/cd
+  color: f9d0c4
+  description: Changes to CI/CD configuration or workflows
+
+- name: cli
+  color: c5def5
+  description: Changes to CLI commands or entry points
+
+- name: core
+  color: 1d76db
+  description: Changes to core business logic
+
+- name: ai
+  color: 6f42c1
+  description: Changes related to AI service integration
+
+- name: git
+  color: 0e8a16
+  description: Changes related to Git service integration
+
+- name: github
+  color: 24292e
+  description: Changes related to GitHub service integration
+
+- name: ui
+  color: bfd4f2
+  description: Changes to terminal UI components
+
+- name: tests
+  color: fbca04
+  description: Changes to test files or test infrastructure
