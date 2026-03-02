@@ -1,0 +1,57 @@
+# Pull Request auto-labeler configuration
+# https://github.com/actions/labeler
+
+'ci/cd':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'yarn.lock'
+
+'documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+
+'cli':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/cli/**'
+
+'core':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/core/**'
+
+'ai':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/aiService.ts'
+
+'git':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/gitService.ts'
+
+'github':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/githubService.ts'
+
+'ui':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/ui/**'
+
+'tests':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.test.ts'
+      - '**/*.spec.ts'
+      - 'tests/**'
