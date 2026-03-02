@@ -26,15 +26,20 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          cache-dependency-path: git-ai/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: git-ai
 
       - name: Lint
         run: npm run lint --if-present
+        working-directory: git-ai
 
       - name: Build
         run: npm run build --if-present
+        working-directory: git-ai
 
       - name: Run tests
         run: npm test --if-present
+        working-directory: git-ai

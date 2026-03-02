@@ -32,6 +32,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
+          source-root: git-ai
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
