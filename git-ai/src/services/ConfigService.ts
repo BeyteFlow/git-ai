@@ -55,7 +55,7 @@ export class ConfigService {
 
   public saveConfig(newConfig: Config): void {
     const validated = ConfigSchema.parse(newConfig);
-    fs.writeFileSync(ConfigService.CONFIG_PATH, JSON.stringify(validated, null, 2));
+    fs.writeFileSync(ConfigService.CONFIG_PATH, JSON.stringify(validated, null, 2), { mode: 0o600 });
     this.config = validated;
   }
 }

@@ -7,7 +7,6 @@ import { logger } from './utils/logger.js';
 const program = new Command();
 const configService = new ConfigService();
 const gitService = new GitService();
-const aiService = new AIService(configService);
 
 program
   .name('ai-git')
@@ -18,6 +17,7 @@ program
   .description('Generate a commit message using AI and commit staged changes')
   .action(async () => {
     try {
+      const aiService = new AIService(configService);
       const diff = await gitService.getDiff();
       if (!diff) {
         console.log('No staged changes found. Please stage files first.');

@@ -36,6 +36,8 @@ export class AIService implements AIProvider {
           maxOutputTokens: 200,
         },
       });
+    } else {
+      throw new Error(`Unsupported AI provider: ${config.ai.provider}`);
     }
   }
 
