@@ -34,6 +34,26 @@ export class GitHubService {
     }
 
     /**
+     * Strips credentials (userinfo) from a URL for safe logging.
+     */
+    private sanitizeUrl(url: string): string {
+        try {
+            // Handle SSH-style git URLs like git@github.com:owner/repo.git
+            const sshMatch = url.match(/^[^@]+@([^:]+):(.+)$/);
+            if (sshMatch) {
+                return `${sshMatch[1]}:${sshMatch[2]}`;
+            }
+            const parsed = new URL(url);
+            parsed.username = '';
+            parsed.password = '';
+            return parsed.toString();
+        } catch {
+            // If URL parsing fails, return a placeholder
+            return '[unparseable URL]';
+        }
+    }
+
+    /**
      * Extracts owner and repo name from a git remote URL
      */
     private parseRepoInfo(url: string): void {
@@ -42,12 +62,12 @@ export class GitHubService {
             this.owner = match[1];
             this.repo = match[2];
         } else {
-            logger.error(`Could not parse GitHub owner/repo from remote URL: ${url}`);
+            logger.error(`Could not parse GitHub owner/repo from remote URL: ${this.sanitizeUrl(url)}`);
             throw new Error("Invalid GitHub remote URL. Expected github.com/<owner>/<repo>.");
         }
 
         if (!this.owner || !this.repo) {
-            logger.error(`Parsed empty GitHub owner/repo from remote URL: ${url}`);
+            logger.error(`Parsed empty GitHub owner/repo from remote URL: ${this.sanitizeUrl(url)}`);
             throw new Error("Could not determine GitHub owner and repository from remote URL.");
         }
     }

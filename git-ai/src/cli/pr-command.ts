@@ -21,32 +21,29 @@ export async function runPRCommand(): Promise<void> {
 
     if (!origin || !origin.refs.fetch) {
       console.error('❌ Error: No remote "origin" found. Ensure your repo is hosted on GitHub.');
-      return;
+      process.exit(1);
     }
 
     const githubService = new GitHubService(configService, origin.refs.fetch);
 
-    // 2. Define the selection handler
-    const handleSelect = (pr: PullRequestMetadata) => {
-      console.log('\n-----------------------------------');
-      console.log(`🚀 Selected PR: #${pr.number}`);
-      console.log(`🔗 URL: ${pr.url}`);
-      console.log(`🌿 Branch: ${pr.branch} -> ${pr.base}`);
-      console.log('-----------------------------------\n');
-      
-      // In a future update, we can trigger gitService.checkout(pr.branch)
-      process.exit(0);
-    };
-
-    // 3. Launch the Ink TUI
-    const { waitUntilExit } = render(
+    // 2. Launch the Ink TUI
+    const renderInstance = render(
       React.createElement(PRList, {
         githubService,
-        onSelect: handleSelect
+        onSelect: (pr: PullRequestMetadata) => {
+          console.log('\n-----------------------------------');
+          console.log(`🚀 Selected PR: #${pr.number}`);
+          console.log(`🔗 URL: ${pr.url}`);
+          console.log(`🌿 Branch: ${pr.branch} -> ${pr.base}`);
+          console.log('-----------------------------------\n');
+          // In a future update, we can trigger gitService.checkout(pr.branch)
+          renderInstance.unmount();
+        }
       })
     );
 
-    await waitUntilExit();
+    // 3. Await clean exit
+    await renderInstance.waitUntilExit();
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), 'Failed to initialize PR command');
     console.error('❌ Critical Error: Could not launch PR interface.');
