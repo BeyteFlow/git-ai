@@ -173,7 +173,14 @@ export class ConflictResolver {
     // Atomic write: write to a temp file, fsync, then rename into place.
     const tempPath = path.join(targetParent, `.tmp-${process.pid}-${randomBytes(8).toString('hex')}`);
     const buffer = Buffer.from(resolvedContent, 'utf-8');
-    const tempHandle = await fs.open(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o644);
+    let fileMode = 0o644;
+    try {
+      const stat = await fs.lstat(targetPath);
+      fileMode = stat.mode & 0o777;
+    } catch {
+      // Target does not exist; use default mode 0o644
+    }
+    const tempHandle = await fs.open(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, fileMode);
     try {
       await tempHandle.writeFile(buffer);
       await tempHandle.sync();
