@@ -175,7 +175,7 @@ export class ConflictResolver {
     const buffer = Buffer.from(resolvedContent, 'utf-8');
     const tempHandle = await fs.open(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o644);
     try {
-      await tempHandle.write(buffer, 0, buffer.length);
+      await tempHandle.writeFile(buffer);
       await tempHandle.sync();
       await tempHandle.close();
     } catch (error) {
