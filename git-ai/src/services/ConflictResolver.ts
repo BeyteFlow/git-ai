@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { randomBytes } from 'crypto';
 import { AIService } from './AIService.js';
 import { GitService } from '../core/GitService.js';
 import { logger } from '../utils/logger.js';
@@ -8,6 +9,54 @@ export interface ConflictDetail {
   file: string;
   content: string;
   suggestion?: string;
+}
+
+/**
+ * Patterns for detecting secrets and sensitive data in conflict content.
+ */
+const SECRET_PATTERNS: RegExp[] = [
+  /-----BEGIN\s+(?:RSA\s+)?PRIVATE KEY-----[\s\S]*?-----END\s+(?:RSA\s+)?PRIVATE KEY-----/gi,
+  /(?:api[_\s-]?key|apikey|secret|token|password|passwd|pwd|auth)['":\s=]+['"]?[A-Za-z0-9/+_\-]{16,}['"]?/gi,
+  // Long base64-like strings that resemble encoded tokens (standalone, not part of identifiers)
+  /(?<![A-Za-z0-9])([A-Za-z0-9+/]{40,}={0,2})(?![A-Za-z0-9])/g,
+  /(?<![A-Za-z0-9_])[a-f0-9]{32,64}(?![A-Za-z0-9_])/gi, // hex strings (hashes/keys)
+];
+
+/**
+ * Extracts only the conflict hunks (lines between <<<<<<< ... >>>>>>>) from file content.
+ */
+function extractConflictHunks(content: string): string {
+  const lines = content.split('\n');
+  const hunks: string[] = [];
+  let inConflict = false;
+  let hunk: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('<<<<<<<')) {
+      inConflict = true;
+      hunk = [line];
+    } else if (inConflict) {
+      hunk.push(line);
+      if (line.startsWith('>>>>>>>')) {
+        hunks.push(hunk.join('\n'));
+        hunk = [];
+        inConflict = false;
+      }
+    }
+  }
+
+  return hunks.length > 0 ? hunks.join('\n\n') : content;
+}
+
+/**
+ * Redacts common secret patterns from content before sending to an external model.
+ */
+function sanitizeContent(content: string): string {
+  let sanitized = extractConflictHunks(content);
+  for (const pattern of SECRET_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized;
 }
 
 export class ConflictResolver {
@@ -50,15 +99,18 @@ export class ConflictResolver {
   }
 
   /**
-   * Uses Gemini to analyze the conflict markers and suggest a fix
+   * Uses Gemini to analyze the conflict markers and suggest a fix.
+   * Sanitizes the content before sending to the external model.
    */
   public async suggestResolution(conflict: ConflictDetail): Promise<string> {
+    const sanitizedContent = sanitizeContent(conflict.content);
+
     const prompt = `
       You are a senior software architect. I have a merge conflict in the file: ${conflict.file}.
-      Below is the file content containing git conflict markers (<<<<<<<, =======, >>>>>>>).
+      Below are the conflict hunks containing git conflict markers (<<<<<<<, =======, >>>>>>>).
       
-      FILE CONTENT:
-      ${conflict.content}
+      CONFLICT HUNKS:
+      ${sanitizedContent}
       
       INSTRUCTIONS:
       1. Analyze the changes from both branches.
@@ -81,8 +133,8 @@ export class ConflictResolver {
   }
 
   /**
-   * Applies the AI's suggested resolution to the physical file.
-   * Uses atomic write with O_NOFOLLOW to prevent symlink attacks and TOCTOU races.
+   * Applies the AI's suggested resolution to the physical file using a truly atomic
+   * write: write to a temp file in the same directory, fsync, then rename to target.
    */
   public async applyResolution(file: string, resolvedContent: string): Promise<void> {
     const realRepoRoot = await fs.realpath(process.cwd());
@@ -95,11 +147,9 @@ export class ConflictResolver {
         throw new Error(`Refusing to write to symlink: ${file}`);
       }
     } catch (error: unknown) {
-      // Handle ENOENT gracefully - file doesn't exist yet, which is fine
       if (error instanceof Error && 'code' in error && (error as any).code === 'ENOENT') {
         // File does not exist, proceeding with creation is safe
       } else {
-        // Re-throw any other error
         throw error;
       }
     }
@@ -120,15 +170,33 @@ export class ConflictResolver {
       throw new Error(`Refusing to write outside repository root: ${file}`);
     }
 
-    // Use atomic write with O_NOFOLLOW to prevent TOCTOU races and symlink escape
-    const flags = fs.constants.O_NOFOLLOW | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_WRONLY;
+    // Atomic write: write to a temp file, fsync, then rename into place.
+    const tempPath = path.join(targetParent, `.tmp-${process.pid}-${randomBytes(8).toString('hex')}`);
     const buffer = Buffer.from(resolvedContent, 'utf-8');
-    const fileHandle = await fs.open(targetPath, flags, 0o644);
+    let fileMode = 0o644;
     try {
-      await fileHandle.write(buffer, 0, buffer.length);
-      await fileHandle.sync();
-    } finally {
-      await fileHandle.close();
+      const stat = await fs.lstat(targetPath);
+      fileMode = stat.mode & 0o777;
+    } catch {
+      // Target does not exist; use default mode 0o644
+    }
+    const tempHandle = await fs.open(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, fileMode);
+    try {
+      await tempHandle.writeFile(buffer);
+      await tempHandle.sync();
+      await tempHandle.close();
+    } catch (error) {
+      await tempHandle.close().catch(() => {});
+      await fs.unlink(tempPath).catch(() => {});
+      throw error;
+    }
+
+    // Atomically replace target with temp file
+    try {
+      await fs.rename(tempPath, targetPath);
+    } catch (error) {
+      await fs.unlink(tempPath).catch(() => {});
+      throw error;
     }
     // Note: User should still 'git add' the file manually or via CLI flow
   }
