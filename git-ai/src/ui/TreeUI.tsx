@@ -11,26 +11,29 @@ interface TreeUIProps {
 export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
   const [treeOutput, setTreeOutput] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function buildTree() {
       try {
-        const branchData = await (gitService as any).git.branch();
+        const branchData = await gitService.getBranches();
         const currentBranch = branchData.current;
         
         // Structure for archy
         const data = {
           label: `📦 Project Root (${currentBranch})`,
-          nodes: Object.values(branchData.branches).map((b: any) => ({
-            label: b.current ? `● ${b.name} (current)` : `○ ${b.name}`,
+          nodes: Object.values(branchData.branches).map((branch) => ({
+            label: branch.current ? `● ${branch.name} (current)` : `○ ${branch.name}`,
             nodes: [
-              { label: `ID: ${b.commit.substring(0, 7)}` }
+              { label: `ID: ${branch.commit?.substring(0, 7) ?? ''}` }
             ]
           }))
         };
 
         setTreeOutput(archy(data));
+        setError(null);
       } catch (error) {
+        setError(error instanceof Error ? error.message : String(error));
         logger.error(error, 'Failed to build tree UI');
       } finally {
         setLoading(false);
@@ -41,6 +44,7 @@ export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
   }, [gitService]);
 
   if (loading) return <Text color="yellow">⏳ Mapping branches...</Text>;
+  if (error) return <Text color="red">❌ Failed to build branch tree: {error}</Text>;
 
   return (
     <Box flexDirection="column" padding={1}>

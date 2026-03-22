@@ -14,14 +14,22 @@ export async function initCommand() {
   console.log('🚀 Welcome to AI-Git-Terminal Setup\n');
 
   try {
-    const apiKey = await rl.question('🔑 Enter your Gemini API Key: ');
+    let apiKey = '';
+    while (!apiKey) {
+      const apiKeyInput = await rl.question('🔑 Enter your Gemini API Key: ');
+      apiKey = apiKeyInput.trim();
+      if (!apiKey) {
+        console.error('❌ API key cannot be empty. Please enter a valid key.');
+      }
+    }
+
     const modelInput = await rl.question('🤖 Enter model name (default: gemini-1.5-flash): ');
     const model = modelInput.trim() || 'gemini-1.5-flash';
 
     const newConfig: Config = {
       ai: {
         provider: 'gemini',
-        apiKey: apiKey.trim(),
+        apiKey,
         model: model,
       },
       git: {
@@ -37,6 +45,25 @@ export async function initCommand() {
     ConfigSchema.parse(newConfig);
 
     const configPath = path.join(os.homedir(), '.aigitrc');
+
+    if (fs.existsSync(configPath)) {
+      const overwriteChoice = (await rl.question(
+        '⚠️ Existing config found. Choose [o]verwrite, [b]ackup then replace, or [c]ancel: '
+      )).trim().toLowerCase();
+
+      if (overwriteChoice === 'b' || overwriteChoice === 'backup') {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = `${configPath}.bak-${timestamp}`;
+        fs.renameSync(configPath, backupPath);
+        console.log(`📦 Existing config backed up to ${backupPath}`);
+      } else if (overwriteChoice === 'o' || overwriteChoice === 'overwrite') {
+        console.log('📝 Overwriting existing config file.');
+      } else {
+        console.log('🚫 Initialization canceled. Existing config left unchanged.');
+        return;
+      }
+    }
+
     fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
 
     console.log(`\n✅ Configuration saved to ${configPath}`);
