@@ -10,7 +10,11 @@ export async function runResolveCommand() {
     const ai = new AIService(config);
     const resolver = new ConflictResolver(ai, git);
 
-    const conflicts = await resolver.getConflicts();
+    const { conflicts, skippedFiles } = await resolver.getConflicts();
+
+    if (skippedFiles.length > 0) {
+      console.warn(`⚠️ Could not read ${skippedFiles.length} conflicted file(s): ${skippedFiles.join(', ')}`);
+    }
 
     if (conflicts.length === 0) {
       console.log('✅ No merge conflicts detected.');

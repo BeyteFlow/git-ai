@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useApp } from 'ink';
 import archy from 'archy';
 import { GitService } from '../core/GitService.js';
 import { logger } from '../utils/logger.js';
@@ -9,6 +9,7 @@ interface TreeUIProps {
 }
 
 export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
+  const { exit } = useApp();
   const [treeOutput, setTreeOutput] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +33,9 @@ export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
 
         setTreeOutput(archy(data));
         setError(null);
-      } catch (error) {
-        setError(error instanceof Error ? error.message : String(error));
-        logger.error(error, 'Failed to build tree UI');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        logger.error(err, 'Failed to build tree UI');
       } finally {
         setLoading(false);
       }
@@ -42,6 +43,15 @@ export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
 
     buildTree();
   }, [gitService]);
+
+  useEffect(() => {
+    // Exit after loading completes (both on success and error) so the process
+    // doesn't hang. The rendered output (tree or error) remains visible in the
+    // terminal after Ink unmounts, because effects run after the render cycle.
+    if (!loading) {
+      exit();
+    }
+  }, [loading, exit]);
 
   if (loading) return <Text color="yellow">⏳ Mapping branches...</Text>;
   if (error) return <Text color="red">❌ Failed to build branch tree: {error}</Text>;

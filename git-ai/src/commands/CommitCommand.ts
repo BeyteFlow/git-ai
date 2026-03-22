@@ -23,15 +23,15 @@ function validateCommitMessage(message: string): string | null {
 }
 
 export async function commitCommand() {
-  const config = new ConfigService();
-  const git = new GitService();
-  const ai = new AIService(config);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
   try {
+    const config = new ConfigService();
+    const git = new GitService();
+    const ai = new AIService(config);
     const diff = await git.getDiff();
     if (!diff) {
       console.log('⚠️  No staged changes found. Use "git add" first.');
