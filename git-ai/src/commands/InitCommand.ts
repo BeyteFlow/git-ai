@@ -28,6 +28,28 @@ async function readSecretInput(rl: readline.Interface, prompt: string): Promise<
   }
 }
 
+/**
+ * Atomically writes content to filePath using a temp file + fsync + rename,
+ * ensuring the file has permissions 0o600.
+ */
+function atomicWriteFileSync(filePath: string, content: string): void {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(dir, `.tmp-${process.pid}-${Date.now()}`);
+  const fd = fs.openSync(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+  try {
+    fs.writeFileSync(fd, content);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    try { fs.unlinkSync(tempPath); } catch { /* best-effort cleanup */ }
+    throw error;
+  }
+}
+
 export async function initCommand() {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -65,9 +87,13 @@ export async function initCommand() {
 
     // --- Step 4: Attempt atomic creation ---
     try {
-      const fd = fs.openSync(configPath, fs.O_CREAT | fs.O_EXCL | fs.O_RDWR, 0o600);
-      fs.writeFileSync(fd, JSON.stringify(newConfig, null, 2));
-      fs.closeSync(fd);
+      const fd = fs.openSync(configPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR, 0o600);
+      try {
+        fs.writeFileSync(fd, JSON.stringify(newConfig, null, 2));
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
       console.log(`\n✅ Configuration saved to ${configPath}`);
       console.log('Try running: ai-git commit');
       return;
@@ -86,17 +112,15 @@ export async function initCommand() {
       const backupPath = `${configPath}.bak-${timestamp}`;
       fs.renameSync(configPath, backupPath);
       console.log(`📦 Existing config backed up to ${backupPath}`);
-      // Now write new config
-      fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), { mode: 0o600 });
+      atomicWriteFileSync(configPath, JSON.stringify(newConfig, null, 2));
     } else if (overwriteChoice === 'o' || overwriteChoice === 'overwrite') {
-      fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), { mode: 0o600 });
+      atomicWriteFileSync(configPath, JSON.stringify(newConfig, null, 2));
       console.log('📝 Overwriting existing config file.');
     } else {
       console.log('🚫 Initialization canceled. Existing config left unchanged.');
       return;
     }
 
-    fs.chmodSync(configPath, 0o600);
     console.log(`\n✅ Configuration saved to ${configPath}`);
     console.log('Try running: ai-git commit');
 
