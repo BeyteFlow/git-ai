@@ -41,32 +41,37 @@ export async function commitCommand() {
     console.log('🤖 Analyzing changes with Gemini...');
     const suggestedMessage = await ai.generateCommitMessage(diff);
     const suggestedValidationError = validateCommitMessage(suggestedMessage);
+    let commitMessage: string | null = null;
 
     if (suggestedValidationError) {
-      logger.error(`Invalid AI commit message from ai.generateCommitMessage: ${suggestedValidationError}`);
-      console.error(`❌ AI returned an invalid commit message: ${suggestedValidationError}`);
-      return;
+      logger.warn(`Invalid AI commit message: ${suggestedValidationError}`);
+      console.warn(`⚠️ AI returned an invalid message: ${suggestedValidationError}`);
+    } else {
+      commitMessage = suggestedMessage.trim();
+      console.log(`\n✨ Suggested message: "${commitMessage}"`);
     }
-    
-    let commitMessage = suggestedMessage.trim();
-    console.log(`\n✨ Suggested message: "${commitMessage}"`);
 
     while (true) {
       const choice = (await rl.question('Choose [a]ccept, [e]dit, or [r]eject: ')).trim().toLowerCase();
 
       if (choice === 'a' || choice === 'accept' || choice === '') {
+        if (!commitMessage) {
+          console.log('No valid commit message available. Please [e]dit to enter one or [r]eject to cancel.');
+          continue;
+        }
         break;
       }
 
       if (choice === 'e' || choice === 'edit') {
-        const editedMessage = await rl.question('✏️ Enter commit message: ');
-        const editedValidationError = validateCommitMessage(editedMessage);
-        if (editedValidationError) {
+        while (true) {
+          const editedMessage = await rl.question('✏️ Enter commit message: ');
+          const editedValidationError = validateCommitMessage(editedMessage);
+          if (!editedValidationError) {
+            commitMessage = editedMessage.trim();
+            break;
+          }
           console.error(`❌ Invalid commit message: ${editedValidationError}`);
-          continue;
         }
-
-        commitMessage = editedMessage.trim();
         break;
       }
 
@@ -78,6 +83,12 @@ export async function commitCommand() {
       console.log('Please choose "a", "e", or "r".');
     }
 
+    if (!commitMessage) {
+      // This should not be reachable: the loop only breaks after commitMessage is set,
+      // and reject returns early. Guard defensively.
+      console.error('❌ No commit message was provided.');
+      return;
+    }
     await git.commit(commitMessage);
     console.log('✅ Committed successfully!');
   } catch (error) {
