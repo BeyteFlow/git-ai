@@ -1,4 +1,4 @@
-import { simpleGit, SimpleGit, StatusResult, LogResult } from 'simple-git';
+import { simpleGit, SimpleGit, StatusResult, LogResult, BranchSummary } from 'simple-git';
 import { logger } from './../utils/logger.js';
 
 export class GitService {
@@ -42,5 +42,14 @@ export class GitService {
   public async getCurrentBranch(): Promise<string> {
     const branchData = await this.git.branch();
     return branchData.current;
+  }
+
+  public async getBranches(): Promise<BranchSummary> {
+    try {
+      return await this.git.branch();
+    } catch (error) {
+      logger.error(`Failed to fetch git branches: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 }

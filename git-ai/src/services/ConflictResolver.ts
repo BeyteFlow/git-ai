@@ -11,6 +11,12 @@ export interface ConflictDetail {
   suggestion?: string;
 }
 
+export interface ConflictsResult {
+  conflicts: ConflictDetail[];
+  /** Files that were identified as conflicted but could not be read. */
+  skippedFiles: string[];
+}
+
 /**
  * Patterns for detecting secrets and sensitive data in conflict content.
  */
@@ -66,13 +72,16 @@ export class ConflictResolver {
   ) {}
 
   /**
-   * Identifies files with merge conflicts and fetches their content
+   * Identifies files with merge conflicts and fetches their content.
+   * Returns both the successfully read conflicts and any files that could
+   * not be read (skippedFiles), so callers can surface partial-failure
+   * warnings to the user instead of silently ignoring them.
    */
-  public async getConflicts(): Promise<ConflictDetail[]> {
+  public async getConflicts(): Promise<ConflictsResult> {
     const status = await this.gitService.getStatus();
     const conflictFiles = status.conflicted;
 
-    if (conflictFiles.length === 0) return [];
+    if (conflictFiles.length === 0) return { conflicts: [], skippedFiles: [] };
 
     const results = await Promise.allSettled(
       conflictFiles.map(async (file) => {
@@ -83,6 +92,7 @@ export class ConflictResolver {
     );
 
     const conflicts: ConflictDetail[] = [];
+    const skippedFiles: string[] = [];
     for (let index = 0; index < results.length; index++) {
       const result = results[index];
       const file = conflictFiles[index];
@@ -93,9 +103,10 @@ export class ConflictResolver {
 
       const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
       logger.error(`Failed to read conflicted file ${file}: ${reason}`);
+      skippedFiles.push(file);
     }
 
-    return conflicts;
+    return { conflicts, skippedFiles };
   }
 
   /**

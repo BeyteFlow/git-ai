@@ -1,39 +1,35 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
-import { GitService } from './core/GitService.js';
-import { ConfigService } from './services/ConfigService.js';
-import { AIService } from './services/AIService.js';
-import { logger } from './utils/logger.js';
+import { commitCommand } from './commands/CommitCommand.js';
+import { runPRCommand } from './cli/pr-command.js';
+import { runResolveCommand } from './commands/ResolveCommand.js';
+import { initCommand } from './commands/InitCommand.js';
 
 const program = new Command();
-const configService = new ConfigService();
-const gitService = new GitService();
 
 program
   .name('ai-git')
-  .version('0.1.0');
+  .description('AI-Powered Git CLI Assistant')
+  .version('1.0.0');
 
 program
-  .command('ai-commit')
-  .description('Generate a commit message using AI and commit staged changes')
-  .action(async () => {
-    try {
-      const aiService = new AIService(configService);
-      const diff = await gitService.getDiff();
-      if (!diff) {
-        console.log('No staged changes found. Please stage files first.');
-        return;
-      }
+  .command('commit')
+  .description('Generate AI commit message for staged changes')
+  .action(commitCommand);
 
-      console.log('🤖 Generating commit message...');
-      const message = await aiService.generateCommitMessage(diff);
-      
-      console.log(`\nSuggested Message: "${message}"`);
-      await gitService.commit(message);
-      console.log('✅ Changes committed successfully.');
-    } catch (err) {
-      logger.error(`AI Commit failed: ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(1);
-    }
-  });
+program
+  .command('prs')
+  .description('Interactively list and view GitHub PRs')
+  .action(runPRCommand);
+
+program
+  .command('resolve')
+  .description('Analyze and resolve merge conflicts using AI')
+  .action(runResolveCommand);
+
+program
+  .command('init')
+  .description('Initialize AI-Git-Terminal with API keys and preferences')
+  .action(initCommand);
 
 program.parse(process.argv);
