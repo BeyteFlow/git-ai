@@ -59,12 +59,12 @@ export class ConfigService {
     const tempPath = path.join(path.dirname(configPath), `.tmp-${process.pid}-${Date.now()}`);
     const fd = fs.openSync(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
     try {
-      fs.writeFileSync(fd, JSON.stringify(validated, null, 2));
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    try {
+      try {
+        fs.writeFileSync(fd, JSON.stringify(validated, null, 2));
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
       fs.renameSync(tempPath, configPath);
     } catch (error) {
       try { fs.unlinkSync(tempPath); } catch { /* best-effort cleanup */ }
