@@ -55,7 +55,21 @@ export class ConfigService {
 
   public saveConfig(newConfig: Config): void {
     const validated = ConfigSchema.parse(newConfig);
-    fs.writeFileSync(ConfigService.CONFIG_PATH, JSON.stringify(validated, null, 2), { mode: 0o600 });
+    const configPath = ConfigService.CONFIG_PATH;
+    const tempPath = path.join(path.dirname(configPath), `.tmp-${process.pid}-${Date.now()}`);
+    const fd = fs.openSync(tempPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+    try {
+      try {
+        fs.writeFileSync(fd, JSON.stringify(validated, null, 2));
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+      fs.renameSync(tempPath, configPath);
+    } catch (error) {
+      try { fs.unlinkSync(tempPath); } catch { /* best-effort cleanup */ }
+      throw error;
+    }
     this.config = validated;
   }
 }
