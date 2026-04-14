@@ -1,13 +1,14 @@
 import { spawn } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const projectRoot = join(__dirname, '..');
-const distDir = join(projectRoot, 'dist');
+const distArg = process.argv[2];
+const distDir = distArg ? resolve(projectRoot, distArg) : join(projectRoot, 'dist');
 
 async function collectTestFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });

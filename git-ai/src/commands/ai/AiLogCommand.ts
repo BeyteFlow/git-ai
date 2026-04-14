@@ -64,11 +64,22 @@ export function buildAiLogCommand(): Command {
         return;
       }
 
+      // Reading notes can be I/O-bound; do it concurrently with a small cap.
+      const concurrency = 8;
       const rows: { commit: string; entry: AiIndexEntry }[] = [];
-      for (const commit of commits) {
-        const idx = await store.listIndexForCommit(commit);
-        for (const entry of idx) {
-          if (matchesFilter(entry, filter)) rows.push({ commit, entry });
+      for (let i = 0; i < commits.length; i += concurrency) {
+        const slice = commits.slice(i, i + concurrency);
+        const results = await Promise.all(
+          slice.map(async (commit) => {
+            const idx = await store.listIndexForCommit(commit);
+            return { commit, idx };
+          })
+        );
+
+        for (const r of results) {
+          for (const entry of r.idx) {
+            if (matchesFilter(entry, filter)) rows.push({ commit: r.commit, entry });
+          }
         }
       }
 

@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "description": "AI-Powered Visual Git CLI for modern developers",
   "type": "module",
+  "files": [
+    "dist/",
+    "scripts/",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "ai-git": "./dist/index.js",
     "git-ai": "./dist/index.js"
@@ -12,10 +19,14 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "clean": "node ./scripts/clean.mjs",
+    "clean:dist": "node ./scripts/clean.mjs dist",
+    "clean:test": "node ./scripts/clean.mjs dist-test",
+    "build": "npm run clean:dist -s && tsc -p tsconfig.build.json",
+    "build:test": "npm run clean:test -s && tsc -p tsconfig.test.json",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
-    "test": "npm run build -s && node ./scripts/run-tests.mjs",
+    "test": "npm run build:test -s && node ./scripts/run-tests.mjs dist-test",
     "prepare": "npm run build"
   },
   "keywords": [
