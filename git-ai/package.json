@@ -4,7 +4,8 @@
   "description": "AI-Powered Visual Git CLI for modern developers",
   "type": "module",
   "bin": {
-    "ai-git": "./dist/index.js"
+    "ai-git": "./dist/index.js",
+    "git-ai": "./dist/index.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -14,7 +15,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
-    "test": "npm run lint",
+    "test": "npm run build -s && node --test dist/**/*.test.js",
     "prepare": "npm run build"
   },
   "keywords": [

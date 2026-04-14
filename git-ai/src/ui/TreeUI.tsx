@@ -53,8 +53,8 @@ export const TreeUI: React.FC<TreeUIProps> = ({ gitService }) => {
     }
   }, [loading, exit]);
 
-  if (loading) return <Text color="yellow">⏳ Mapping branches...</Text>;
-  if (error) return <Text color="red">❌ Failed to build branch tree: {error}</Text>;
+  if (loading) return <Text color="yellow">Mapping branches...</Text>;
+  if (error) return <Text color="red">Failed to build branch tree: {error}</Text>;
 
   return (
     <Box flexDirection="column" padding={1}>

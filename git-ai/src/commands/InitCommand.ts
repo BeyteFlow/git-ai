@@ -10,16 +10,22 @@ import { logger } from '../utils/logger.js';
  * Falls back to normal readline if stdin is not a TTY (e.g. piped input).
  */
 async function readSecretInput(rl: readline.Interface, prompt: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    return rl.question(prompt);
+  }
+
   const rlAny = rl as any;
   const originalWrite = rlAny._writeToOutput;
   let promptWritten = false;
+
   rlAny._writeToOutput = function _writeToOutput(str: string) {
     if (!promptWritten) {
       promptWritten = true;
       process.stdout.write(str);
     }
-    // Suppress all subsequent echoed characters
+    // Suppress all subsequent echoed characters.
   };
+
   try {
     return await rl.question(prompt);
   } finally {
@@ -45,7 +51,11 @@ function atomicWriteFileSync(filePath: string, content: string): void {
     }
     fs.renameSync(tempPath, filePath);
   } catch (error) {
-    try { fs.unlinkSync(tempPath); } catch { /* best-effort cleanup */ }
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      // best-effort cleanup
+    }
     throw error;
   }
 }
@@ -59,33 +69,33 @@ export async function initCommand() {
   console.log('🚀 Welcome to AI-Git-Terminal Setup\n');
 
   try {
-    // --- Step 1: Read API Key ---
+    // Gemini API Key (required)
     let apiKey = '';
     while (!apiKey) {
       const apiKeyInput = await readSecretInput(rl, '🔑 Enter your Gemini API Key: ');
       apiKey = apiKeyInput.trim();
-      if (!apiKey) {
-        console.error('❌ API key cannot be empty. Please enter a valid key.');
-      }
+      if (!apiKey) console.error('❌ API key cannot be empty.');
     }
 
-    // --- Step 2: Read model name ---
+    // GitHub token (optional; required only for "prs")
+    const githubTokenInput = await readSecretInput(rl, '🐙 Enter GitHub Personal Access Token (optional): ');
+    const githubToken = githubTokenInput.trim();
+
     const modelInput = await rl.question('🤖 Enter model name (default: gemini-1.5-flash): ');
     const model = modelInput.trim() || 'gemini-1.5-flash';
 
-    // --- Step 3: Build config object ---
     const newConfig: Config = {
       ai: { provider: 'gemini', apiKey, model },
+      ...(githubToken ? { github: { token: githubToken } } : {}),
       git: { autoStage: false },
       ui: { theme: 'dark', showIcons: true },
     };
 
-    // Validate with Zod
     ConfigSchema.parse(newConfig);
 
     const configPath = path.join(os.homedir(), '.aigitrc');
 
-    // --- Step 4: Attempt atomic creation ---
+    // Attempt atomic create first.
     try {
       const fd = fs.openSync(configPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR, 0o600);
       try {
@@ -99,10 +109,8 @@ export async function initCommand() {
       return;
     } catch (err: any) {
       if (err.code !== 'EEXIST') throw err;
-      // File already exists, proceed to backup/overwrite prompt
     }
 
-    // --- Step 5: Handle existing file ---
     const overwriteChoice = (await rl.question(
       '⚠️ Existing config found. Choose [o]verwrite, [b]ackup then replace, or [c]ancel: '
     )).trim().toLowerCase();
@@ -123,10 +131,9 @@ export async function initCommand() {
 
     console.log(`\n✅ Configuration saved to ${configPath}`);
     console.log('Try running: ai-git commit');
-
   } catch (error) {
-    logger.error('Failed to save configuration: ' + (error instanceof Error ? error.message : String(error)));
-    console.error('\n❌ Invalid input or failed to write config file.');
+    logger.error('Init failed', error as any);
+    console.error('\n❌ Setup failed. Check logs for details.');
   } finally {
     rl.close();
   }
