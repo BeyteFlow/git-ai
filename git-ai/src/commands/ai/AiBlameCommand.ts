@@ -11,7 +11,7 @@ type BlameOptions = {
 // Strip ANSI escape sequences and C0/C1 control characters, then truncate.
 function sanitizeForTerminal(value: string, maxLen = 200): string {
   // eslint-disable-next-line no-control-regex
-  const cleaned = value.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, '');
+  const cleaned = value.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?(?:\x07|\x1b\\)|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, '');
   return cleaned.length > maxLen ? cleaned.slice(0, maxLen) + '…' : cleaned;
 }
 
@@ -159,7 +159,8 @@ function printBlock(
   const model = sanitizeForTerminal(meta.model);
   const intent = sanitizeForTerminal(meta.intent);
   const prompt = sanitizeForTerminal(meta.prompt.replace(/\s+/g, ' ').trim());
-  const recordId = recordKey.includes(':') ? recordKey.split(':').slice(1).join(':') : recordKey;
+  const colonIdx = recordKey.indexOf(':');
+  const recordId = colonIdx >= 0 ? recordKey.substring(colonIdx + 1) : recordKey;
   console.log(`${range}  ${sanitizeForTerminal(recordId)}  ${provider}/${model}  intent=${intent}  commit=${short}`);
   // Print prompt on its own line to keep the blame output readable.
   console.log(`         prompt: ${prompt}`);
