@@ -56,8 +56,14 @@ export function buildAiExportCommand(): Command {
         }
       }
 
-      await fs.writeFile(outFile, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
-      console.log(`Exported ${lines.length} record(s) to ${outFile}`);
+      try {
+        await fs.writeFile(outFile, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
+        console.log(`Exported ${lines.length} record(s) to ${outFile}`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Failed to write ${outFile}: ${msg}`);
+        process.exitCode = 1;
+      }
     });
 
   return cmd;

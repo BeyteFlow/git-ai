@@ -10,7 +10,9 @@ export function hashLine(line: string): string {
 }
 
 export function hashLines(lines: string[]): string[] {
+  // Filter blank lines after normalization so we don't waste anchors on whitespace-only content.
   return lines
-    .map(hashLine)
-    .filter((h) => h.length > 0);
+    .map((l) => normalizeLineForHash(l))
+    .filter((l) => l.length > 0)
+    .map((l) => createHash('sha256').update(l, 'utf8').digest('hex'));
 }

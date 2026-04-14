@@ -64,7 +64,10 @@ export function buildAiBlameCommand(): Command {
 
       // 3) Load notes records for those commits and build a reverse index of hash -> record id.
       const hashToRecord: Map<string, { commit: string; id: string }[]> = new Map();
-      const recordMeta: Map<string, { commit: string; intent: string; model: string; provider: string; prompt: string }> = new Map();
+      const recordMeta: Map<
+        string,
+        { commit: string; createdAt: string; intent: string; model: string; provider: string; prompt: string }
+      > = new Map();
 
       for (const c of commits) {
         const idx = await store.listIndexForCommit(c);
@@ -73,6 +76,7 @@ export function buildAiBlameCommand(): Command {
           if (!rec) continue;
           recordMeta.set(entry.id, {
             commit: c,
+            createdAt: rec.createdAt,
             intent: rec.intent,
             model: rec.model,
             provider: rec.provider,
@@ -91,7 +95,7 @@ export function buildAiBlameCommand(): Command {
       for (let i = 0; i < lines.length; i++) {
         const h = lineHashes[i];
         const matches = hashToRecord.get(h);
-        const recordId = matches && matches.length > 0 ? matches[0].id : undefined;
+        const recordId = pickDeterministicRecordId(matches, recordMeta);
         annotated.push({ lineNo: i + 1, line: lines[i], recordId });
       }
 
@@ -128,7 +132,7 @@ function printBlock(
   startLine: number,
   endLine: number,
   recordId: string | undefined,
-  recordMeta: Map<string, { commit: string; intent: string; model: string; provider: string; prompt: string }>
+  recordMeta: Map<string, { commit: string; createdAt: string; intent: string; model: string; provider: string; prompt: string }>
 ): void {
   const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
   if (!recordId) {
@@ -144,4 +148,21 @@ function printBlock(
   console.log(`${range}  ${recordId}  ${meta.provider}/${meta.model}  intent=${meta.intent}  commit=${short}`);
   // Print prompt on its own line to keep the blame output readable.
   console.log(`         prompt: ${meta.prompt.replace(/\s+/g, ' ').trim()}`);
+}
+
+function pickDeterministicRecordId(
+  matches: { commit: string; id: string }[] | undefined,
+  recordMeta: Map<string, { createdAt: string }>
+): string | undefined {
+  if (!matches || matches.length === 0) return undefined;
+
+  // Deterministic selection when multiple records claim the same line hash.
+  // Prefer the newest record by createdAt, then by id.
+  const sorted = [...matches].sort((a, b) => {
+    const aTime = recordMeta.get(a.id)?.createdAt ?? '';
+    const bTime = recordMeta.get(b.id)?.createdAt ?? '';
+    if (aTime !== bTime) return bTime.localeCompare(aTime);
+    return a.id.localeCompare(b.id);
+  });
+  return sorted[0]?.id;
 }

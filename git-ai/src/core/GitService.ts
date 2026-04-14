@@ -1,6 +1,24 @@
 import { simpleGit, SimpleGit, StatusResult, LogResult, BranchSummary } from 'simple-git';
 import { logger } from '../utils/logger.js';
 
+function redactGitArgs(args: string[]): string[] {
+  // `git notes add -m <message>` can contain prompts/metadata. Avoid logging secrets.
+  const redacted: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i] ?? '';
+    redacted.push(a);
+
+    if (a === '-m' || a === '--message' || a === '-F' || a === '--file') {
+      const next = args[i + 1];
+      if (typeof next === 'string') {
+        redacted.push('<redacted>');
+        i++;
+      }
+    }
+  }
+  return redacted;
+}
+
 export class GitService {
   private git: SimpleGit;
 
@@ -14,7 +32,7 @@ export class GitService {
       return await this.git.raw(args);
     } catch (error) {
       const details = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to run git ${args.join(' ')}: ${details}`);
+      logger.error(`Failed to run git ${redactGitArgs(args).join(' ')}: ${details}`);
       throw error;
     }
   }

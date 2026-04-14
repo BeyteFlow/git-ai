@@ -47,7 +47,10 @@ test('git notes rewrite (amend) carries refs/notes/git-ai', async () => {
     await runGit(dir, ['config', '--add', 'notes.rewriteRef', 'refs/notes/git-ai']);
     await runGit(dir, ['config', 'notes.rewrite.amend', 'true']);
 
-    // Amend commit (no content change needed to force rewrite).
+    // Amend commit. Make a tiny content change so the new commit id is guaranteed
+    // to differ even if git's timestamp resolution is only 1 second.
+    await fs.writeFile(path.join(dir, 'file.txt'), 'hello!\n', 'utf8');
+    await runGit(dir, ['add', '.']);
     await runGit(dir, ['commit', '--amend', '--no-edit']);
     const sha2 = (await runGit(dir, ['rev-parse', 'HEAD'])).trim();
     assert.notEqual(sha1, sha2);

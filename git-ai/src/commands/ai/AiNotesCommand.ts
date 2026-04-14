@@ -32,13 +32,15 @@ export function buildAiNotesCommand(): Command {
       const git = new GitService();
       const remote = (opts.remote ?? 'origin').trim() || 'origin';
 
-      let remotes: any[] = [];
+      type GitRemote = { name: string; refs?: { fetch?: string; push?: string } };
+
+      let remotes: GitRemote[] = [];
       try {
-        remotes = await git.getRemotes(true);
+        remotes = (await git.getRemotes(true)) as GitRemote[];
       } catch {
         // ignore
       }
-      const found = remotes.find((r: any) => r.name === remote);
+      const found = remotes.find((r) => r.name === remote);
 
       console.log('AI notes ref: refs/notes/git-ai');
       console.log('');

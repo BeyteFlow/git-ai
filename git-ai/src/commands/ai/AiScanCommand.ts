@@ -14,6 +14,10 @@ const RISK_RULES: { id: string; pattern: RegExp; message: string }[] = [
   { id: 'sql_concat', pattern: /SELECT\s+.*\+\s*\w+|INSERT\s+.*\+\s*\w+|UPDATE\s+.*\+\s*\w+|DELETE\s+.*\+\s*\w+/i, message: 'String-concatenated SQL can enable injection; use parameters.' },
 ];
 
+function toGlobal(pattern: RegExp): RegExp {
+  return pattern.global ? pattern : new RegExp(pattern.source, `${pattern.flags}g`);
+}
+
 export function buildAiScanCommand(): Command {
   const cmd = new Command('scan')
     .description('Heuristic scan for risky patterns in current staged diff (best-effort)')
@@ -47,8 +51,7 @@ export function buildAiScanCommand(): Command {
 
       const hits: { rule: string; message: string; sample: string }[] = [];
       for (const rule of RISK_RULES) {
-        const m = diff.match(rule.pattern);
-        if (m) {
+        for (const m of diff.matchAll(toGlobal(rule.pattern))) {
           hits.push({ rule: rule.id, message: rule.message, sample: m[0] });
         }
       }

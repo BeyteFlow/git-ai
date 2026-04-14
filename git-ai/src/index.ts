@@ -22,13 +22,15 @@ import { buildAiScanCommand } from './commands/ai/AiScanCommand.js';
 
 const program = new Command();
 
+const VERSION = '1.0.0';
+
 const binPath = process.argv[1] ? path.basename(process.argv[1]) : 'ai-git';
 const nameFromBin = binPath.toLowerCase().includes('git-ai') ? 'git-ai' : 'ai-git';
 
 // Avoid noisy banners for non-interactive usage.
 if (process.stdout.isTTY) {
   const banner = `
-  ${chalk.bold.magenta('●')} ${chalk.bold('GIT-AI')} ${chalk.dim('v1.0.0')}
+  ${chalk.bold.magenta('●')} ${chalk.bold(nameFromBin.toUpperCase())} ${chalk.dim(`v${VERSION}`)}
   ${chalk.dim('————————————————————————————————')}
 `;
   console.log(banner);
@@ -41,7 +43,7 @@ program
       ? 'AI attribution metadata for git (use via: git ai <command>)'
       : 'AI-Powered Git CLI Assistant'
   )
-  .version('1.0.0');
+  .version(VERSION);
 
 if (nameFromBin === 'git-ai') {
   // Git subcommand mode: `git ai <cmd>` executes `git-ai <cmd>`.

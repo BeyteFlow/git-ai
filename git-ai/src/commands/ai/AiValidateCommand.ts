@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import { GitService } from '../../core/GitService.js';
 import { AiNotesStore } from '../../ai/notes-store.js';
-import { AiAttributionSchema } from '../../ai/schema.js';
 
 type ValidateOptions = {
   limit?: string;
@@ -51,12 +50,6 @@ export function buildAiValidateCommand(): Command {
           if (!rec) {
             bad++;
             console.error(`Invalid: missing record payload for ${entry.id} on ${c}`);
-            continue;
-          }
-          const parsed = AiAttributionSchema.safeParse(rec);
-          if (!parsed.success) {
-            bad++;
-            console.error(`Invalid: schema mismatch for ${entry.id} on ${c}`);
             continue;
           }
           ok++;

@@ -39,13 +39,17 @@ export function buildAiImportCommand(): Command {
       let ok = 0;
       let bad = 0;
 
+      let lineNum = 0;
       for (const line of lines) {
+        lineNum++;
         try {
           const parsed = JSON.parse(line);
           const rec = AiAttributionSchema.parse(parsed);
           await store.upsertAttribution(rec);
           ok++;
-        } catch {
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          console.warn(`Line ${lineNum}: invalid or unparseable (${msg})`);
           bad++;
         }
       }
@@ -53,6 +57,7 @@ export function buildAiImportCommand(): Command {
       console.log(`Imported ${ok} record(s) into ${store.getNotesRef()}`);
       if (bad > 0) {
         console.warn(`Skipped ${bad} invalid line(s).`);
+        process.exitCode = 1;
       }
     });
 

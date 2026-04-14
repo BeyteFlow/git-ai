@@ -20,6 +20,7 @@ export const AiExplorer: React.FC<Props> = ({ git, store }) => {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
   const [details, setDetails] = useState<string>('');
+  const [listOffset, setListOffset] = useState(0);
 
   const rowsRef = useRef<Row[]>([]);
   useEffect(() => {
@@ -51,8 +52,7 @@ export const AiExplorer: React.FC<Props> = ({ git, store }) => {
         if (!alive) return;
         setError(e instanceof Error ? e.message : String(e));
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
     load();
@@ -85,6 +85,21 @@ export const AiExplorer: React.FC<Props> = ({ git, store }) => {
     };
   }, [selectedRow, store]);
 
+  useEffect(() => {
+    // Keep selected row within the visible window.
+    const windowSize = 30;
+    setListOffset((prev) => {
+      const maxStart = Math.max(0, rows.length - windowSize);
+      const clampedPrev = Math.min(Math.max(0, prev), maxStart);
+
+      if (selected < clampedPrev) return selected;
+      if (selected >= clampedPrev + windowSize) {
+        return Math.min(maxStart, selected - windowSize + 1);
+      }
+      return clampedPrev;
+    });
+  }, [rows.length, selected]);
+
   useInput((_input, key) => {
     const current = rowsRef.current;
     if (key.escape || (key.ctrl && _input === 'c')) {
@@ -114,7 +129,8 @@ export const AiExplorer: React.FC<Props> = ({ git, store }) => {
     <Box flexDirection="row" gap={2}>
       <Box flexDirection="column" width={50} borderStyle="round" borderColor="cyan" padding={1}>
         <Text bold underline>AI Attribution</Text>
-        {rows.slice(0, 30).map((r, i) => {
+        {rows.slice(listOffset, listOffset + 30).map((r, idx) => {
+          const i = listOffset + idx;
           const isSelected = i === selected;
           return (
             <Text key={`${r.commit}:${r.entry.id}`} color={isSelected ? 'blue' : undefined}>
@@ -123,7 +139,9 @@ export const AiExplorer: React.FC<Props> = ({ git, store }) => {
             </Text>
           );
         })}
-        <Text dimColor>↑/↓ navigate, Esc exit</Text>
+        <Text dimColor>
+          ↑/↓ navigate, Esc exit ({Math.min(rows.length, listOffset + 30)}/{rows.length})
+        </Text>
       </Box>
 
       <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor="gray" padding={1}>

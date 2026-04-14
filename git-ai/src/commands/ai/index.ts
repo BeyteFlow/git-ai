@@ -33,6 +33,8 @@ export function buildAiCommand(): Command {
       '',
       'Notes storage:',
       '  This tool stores metadata in `git notes --ref refs/notes/git-ai`.',
+      '  Preserve notes across rebases/amends with:',
+      '    git config --add notes.rewriteRef refs/notes/git-ai',
       '  Share notes with teammates by pushing/fetching that ref:',
       '    git push origin refs/notes/git-ai',
       '    git fetch origin refs/notes/git-ai:refs/notes/git-ai',

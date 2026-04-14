@@ -29,7 +29,7 @@ export function buildAiInspectCommand(): Command {
         const rec = await store.getRecord(resolved, id);
         if (!rec) {
           console.error(`Not found: ${id} on ${resolved}`);
-          console.error('Recovery: use `ai-git ai log` to list records and confirm commit/id.');
+          console.error('Recovery: use `git ai log` (or `ai-git ai log`) to list records and confirm commit/id.');
           process.exitCode = 2;
           return;
         }
