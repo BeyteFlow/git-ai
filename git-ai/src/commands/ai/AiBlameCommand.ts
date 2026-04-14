@@ -8,6 +8,13 @@ type BlameOptions = {
   maxCommits?: string;
 };
 
+// Strip ANSI escape sequences and C0/C1 control characters, then truncate.
+function sanitizeForTerminal(value: string, maxLen = 200): string {
+  // eslint-disable-next-line no-control-regex
+  const cleaned = value.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, '');
+  return cleaned.length > maxLen ? cleaned.slice(0, maxLen) + '…' : cleaned;
+}
+
 function toNum(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const n = Number(value);
@@ -47,7 +54,9 @@ export function buildAiBlameCommand(): Command {
         return;
       }
 
-      const lines = fileContent.split(/\r?\n/);
+      // Strip a single trailing newline so the split does not produce a synthetic empty last element.
+      const trimmedContent = fileContent.replace(/\r?\n$/, '');
+      const lines = trimmedContent.split(/\r?\n/);
       const lineHashes = lines.map(hashLine);
 
       // 2) Get commits that last touched the file.
@@ -74,7 +83,8 @@ export function buildAiBlameCommand(): Command {
         for (const entry of idx) {
           const rec = await store.getRecord(c, entry.id);
           if (!rec) continue;
-          recordMeta.set(entry.id, {
+          const compositeKey = `${c}:${entry.id}`;
+          recordMeta.set(compositeKey, {
             commit: c,
             createdAt: rec.createdAt,
             intent: rec.intent,
@@ -91,15 +101,15 @@ export function buildAiBlameCommand(): Command {
       }
 
       // 4) Annotate each line with best match (first record that claims the hash).
-      const annotated: { lineNo: number; line: string; recordId?: string }[] = [];
+      const annotated: { lineNo: number; line: string; recordKey?: string }[] = [];
       for (let i = 0; i < lines.length; i++) {
         const h = lineHashes[i];
         const matches = hashToRecord.get(h);
-        const recordId = pickDeterministicRecordId(matches, recordMeta);
-        annotated.push({ lineNo: i + 1, line: lines[i], recordId });
+        const recordKey = pickDeterministicRecordKey(matches, recordMeta);
+        annotated.push({ lineNo: i + 1, line: lines[i], recordKey });
       }
 
-      const any = annotated.some((a) => a.recordId);
+      const any = annotated.some((a) => a.recordKey);
       if (!any) {
         console.log('No AI attribution correlated to current file content.');
         console.log('Tip: record attributions with `ai-git ai record --lines-from-file --path <file> ...`');
@@ -107,22 +117,22 @@ export function buildAiBlameCommand(): Command {
       }
 
       // Print a compact blame-like output. Group consecutive lines by record.
-      let currentId: string | undefined;
+      let currentKey: string | undefined;
       let blockStart = 1;
       for (let i = 0; i < annotated.length; i++) {
-        const id = annotated[i].recordId;
+        const key = annotated[i].recordKey;
         if (i === 0) {
-          currentId = id;
+          currentKey = key;
           blockStart = 1;
           continue;
         }
-        if (id !== currentId) {
-          printBlock(blockStart, i, currentId, recordMeta);
-          currentId = id;
+        if (key !== currentKey) {
+          printBlock(blockStart, i, currentKey, recordMeta);
+          currentKey = key;
           blockStart = i + 1;
         }
       }
-      printBlock(blockStart, annotated.length, currentId, recordMeta);
+      printBlock(blockStart, annotated.length, currentKey, recordMeta);
     });
 
   return cmd;
@@ -131,38 +141,48 @@ export function buildAiBlameCommand(): Command {
 function printBlock(
   startLine: number,
   endLine: number,
-  recordId: string | undefined,
+  recordKey: string | undefined,
   recordMeta: Map<string, { commit: string; createdAt: string; intent: string; model: string; provider: string; prompt: string }>
 ): void {
   const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
-  if (!recordId) {
+  if (!recordKey) {
     console.log(`${range}  (no-ai)  `);
     return;
   }
-  const meta = recordMeta.get(recordId);
+  const meta = recordMeta.get(recordKey);
   if (!meta) {
-    console.log(`${range}  ${recordId}  (missing metadata)`);
+    console.log(`${range}  ${sanitizeForTerminal(recordKey)}  (missing metadata)`);
     return;
   }
   const short = meta.commit.substring(0, 12);
-  console.log(`${range}  ${recordId}  ${meta.provider}/${meta.model}  intent=${meta.intent}  commit=${short}`);
+  const provider = sanitizeForTerminal(meta.provider);
+  const model = sanitizeForTerminal(meta.model);
+  const intent = sanitizeForTerminal(meta.intent);
+  const prompt = sanitizeForTerminal(meta.prompt.replace(/\s+/g, ' ').trim());
+  const recordId = recordKey.includes(':') ? recordKey.split(':').slice(1).join(':') : recordKey;
+  console.log(`${range}  ${sanitizeForTerminal(recordId)}  ${provider}/${model}  intent=${intent}  commit=${short}`);
   // Print prompt on its own line to keep the blame output readable.
-  console.log(`         prompt: ${meta.prompt.replace(/\s+/g, ' ').trim()}`);
+  console.log(`         prompt: ${prompt}`);
 }
 
-function pickDeterministicRecordId(
+function pickDeterministicRecordKey(
   matches: { commit: string; id: string }[] | undefined,
   recordMeta: Map<string, { createdAt: string }>
 ): string | undefined {
   if (!matches || matches.length === 0) return undefined;
 
   // Deterministic selection when multiple records claim the same line hash.
-  // Prefer the newest record by createdAt, then by id.
+  // Prefer the newest record by createdAt (numeric timestamp), then by id.
   const sorted = [...matches].sort((a, b) => {
-    const aTime = recordMeta.get(a.id)?.createdAt ?? '';
-    const bTime = recordMeta.get(b.id)?.createdAt ?? '';
-    if (aTime !== bTime) return bTime.localeCompare(aTime);
+    const aKey = `${a.commit}:${a.id}`;
+    const bKey = `${b.commit}:${b.id}`;
+    const aRaw = recordMeta.get(aKey)?.createdAt ?? '';
+    const bRaw = recordMeta.get(bKey)?.createdAt ?? '';
+    const aTime = Number.isFinite(Date.parse(aRaw)) ? Date.parse(aRaw) : 0;
+    const bTime = Number.isFinite(Date.parse(bRaw)) ? Date.parse(bRaw) : 0;
+    if (aTime !== bTime) return bTime - aTime; // newest first
     return a.id.localeCompare(b.id);
   });
-  return sorted[0]?.id;
+  const best = sorted[0];
+  return best ? `${best.commit}:${best.id}` : undefined;
 }

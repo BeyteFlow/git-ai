@@ -30,17 +30,22 @@ export function buildAiScanCommand(): Command {
         '  ai-git ai scan',
       ].join('\n')
     )
-    .action(async (opts: ScanOptions) => {
+    .action(async (opts: ScanOptions, command: Command) => {
       const git = new GitService();
       const commit = (opts.commit ?? 'HEAD').trim();
+      const commitExplicit = command.getOptionValueSource('commit') === 'cli';
 
       let diff = '';
       try {
-        // Default: scan staged diff. If in git subcommand mode, users can still stage before scan.
-        diff = await git.raw(['diff', '--cached']);
-        if (!diff.trim()) {
-          // Fallback: scan last commit patch.
+        if (commitExplicit) {
+          // User explicitly passed --commit; scan that commit's diff directly.
           diff = await git.raw(['show', '--format=', commit]);
+        } else {
+          // Default: scan staged diff. If empty, fall back to last commit patch.
+          diff = await git.raw(['diff', '--cached']);
+          if (!diff.trim()) {
+            diff = await git.raw(['show', '--format=', commit]);
+          }
         }
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
