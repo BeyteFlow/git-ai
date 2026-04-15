@@ -63,8 +63,8 @@ export const PRList: React.FC<PRListProps> = ({ githubService, onSelect }) => {
     }
   });
 
-  if (loading) return <Text color="yellow">⏳ Loading Pull Requests...</Text>;
-  if (error) return <Text color="red">✖ {error}</Text>;
+  if (loading) return <Text color="yellow">Loading Pull Requests...</Text>;
+  if (error) return <Text color="red">{error}</Text>;
   if (prs.length === 0) return <Text italic>No open Pull Requests found.</Text>;
 
   return (
@@ -89,7 +89,7 @@ export const PRList: React.FC<PRListProps> = ({ githubService, onSelect }) => {
       })}
 
       <Box marginTop={1}>
-        <Text dimColor>Use ↑/↓ to navigate, Enter to select</Text>
+        <Text dimColor>Use Up/Down to navigate, Enter to select</Text>
       </Box>
     </Box>
   );

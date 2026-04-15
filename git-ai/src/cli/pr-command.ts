@@ -15,8 +15,7 @@ export async function runPRCommand(): Promise<void> {
     const gitService = new GitService();
 
     // 1. Get the remote URL to identify the GitHub repository
-    // Accessing the underlying git instance safely:
-    const remotes = await (gitService as any).git.getRemotes(true);
+    const remotes = await gitService.getRemotes(true);
     const origin = remotes.find((r: any) => r.name === 'origin');
 
     if (!origin || !origin.refs.fetch) {
